@@ -123,6 +123,12 @@
     return Array.from(root.querySelectorAll('button')).find((b) => b.textContent.trim() === text);
   }
 
+  // Matches "Delete" or "Delete everything!" - Plinth's exact wording here has
+  // changed between environments, so match on prefix instead of an exact string.
+  function findDeleteButton(root) {
+    return Array.from(root.querySelectorAll('button')).find((b) => /^delete/i.test(b.textContent.trim()));
+  }
+
   async function openMoreMenu() {
     const btn = findMoreButton();
     if (!btn) throw new Error('More button not found');
@@ -192,11 +198,11 @@
           m.textContent.includes('Delete everything')
         )
       );
-      const input = dialog.querySelector('input[type="text"]');
+      const input = dialog.querySelector('input[type="text"], input:not([type])');
       if (!input) throw new Error('Confirm text input not found in dialog');
       setNativeValue(input, DELETE_CONFIRM_TEXT);
 
-      const getConfirmBtn = () => findButtonByText(dialog, 'Delete everything!');
+      const getConfirmBtn = () => findDeleteButton(dialog);
       armEnterToClick(getConfirmBtn);
       toast('Confirm box filled - press Enter to delete', '#ffd27f');
     } catch (e) {
