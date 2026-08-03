@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Plinth Bulk Cleanup Helper
 // @version      4.1
-// @match        https://app.plinth.org.uk/members/*
+// @match        https://app.plinth.org.uk/*
 // @run-at       document-idle
 // ==/UserScript==
 
