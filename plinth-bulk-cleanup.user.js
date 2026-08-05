@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Plinth Bulk Cleanup Helper
-// @version      4.1
+// @version      4.2
 // @match        https://app.plinth.org.uk/*
 // @run-at       document-idle
 // ==/UserScript==
@@ -11,6 +11,7 @@
   const DELETE_CONFIRM_TEXT = 'Delete everything';
   const MERGE_KEY = 'm';     // member page: open Fix Duplicates -> jump to compare screen if Plinth auto-matched
   const ARCHIVE_KEY = 'a';   // member page: open Archive -> pre-fill delete confirmation
+  const REGISTER_KEY = 'g';  // event Register tab: open next "Not Registered" attendee's modal, tick acknowledge, arm Enter to confirm
 
   function isTypingTarget(el) {
     if (!el) return false;
@@ -103,6 +104,11 @@
       } else if (e.key === ARCHIVE_KEY) {
         e.preventDefault();
         runDelete();
+      }
+    } else if (location.pathname.startsWith('/projectedit2')) {
+      if (e.key === REGISTER_KEY) {
+        e.preventDefault();
+        runRegisterNext();
       }
     }
   });
@@ -207,6 +213,61 @@
       toast('Confirm box filled - press Enter to delete', '#ffd27f');
     } catch (e) {
       toast('Could not run delete flow: ' + e.message, '#ff8f8f');
+    }
+  }
+
+  // ---- shortcut: on an event's Register tab, click the next "Not
+  // Registered" attendee's "Register for programme" button, tick the
+  // required acknowledge checkbox, and arm Enter to click "Register now" -
+  // same never-auto-confirm pattern as runDelete, since this shares a
+  // child's data with the council. After Enter fires and the modal closes,
+  // automatically re-arms on the next "Not Registered" row, so a whole batch
+  // is just: press g once, then Enter, Enter, Enter... Stops itself and
+  // toasts when no rows are left. ----
+  async function runRegisterNext() {
+    try {
+      const btn = Array.from(document.querySelectorAll('button')).find(
+        (b) => b.textContent.trim() === 'Register for programme' && b.offsetParent !== null
+      );
+      if (!btn) {
+        toast('No more "Not Registered" attendees on this page', '#7fdc7f');
+        return;
+      }
+      btn.click();
+
+      const modal = await waitFor(() =>
+        Array.from(document.querySelectorAll('.ant-modal')).find((m) =>
+          m.textContent.includes('needs to be registered with')
+        )
+      );
+      const checkbox = modal.querySelector('input[type="checkbox"]');
+      if (!checkbox) throw new Error('Acknowledge checkbox not found in modal');
+      if (!checkbox.checked) checkbox.click();
+
+      const getRegisterBtn = () => findButtonByText(modal, 'Register now');
+      await waitFor(() => {
+        const b = getRegisterBtn();
+        return b && !b.disabled;
+      });
+
+      const handler = (e) => {
+        if (e.key !== 'Enter') return;
+        const b = getRegisterBtn();
+        if (!b || b.disabled || b.offsetParent === null) return;
+        e.preventDefault();
+        e.stopPropagation();
+        document.removeEventListener('keydown', handler, true);
+        b.click();
+        waitFor(() => !document.body.contains(modal) || modal.offsetParent === null, 5000)
+          .then(() => runRegisterNext())
+          .catch(() => toast('Registered - press g for the next one', '#7fdc7f'));
+      };
+      document.addEventListener('keydown', handler, true);
+      setTimeout(() => document.removeEventListener('keydown', handler, true), 15000);
+
+      toast('Ready - press Enter to register, then it auto-advances', '#ffd27f');
+    } catch (e) {
+      toast('Could not run register flow: ' + e.message, '#ff8f8f');
     }
   }
 })();
